@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "117536383732",
+    "project_id": "extend-system",
+    "storage_bucket": "extend-system.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:117536383732:android:2e97c4626a6cb7652a74a1",
+        "android_client_info": {
+          "package_name": "com.example.extend_system"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "117536383732-f4gtv2bbocssjmambv0to7u4rfqq13je.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA16h3BeFwT2eNsuet_Z9x6wuWX2sG4mJU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "117536383732-f4gtv2bbocssjmambv0to7u4rfqq13je.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,49 @@
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
+
+import 'package:extend_system/app/modules/layout.dart';
+import 'package:extend_system/app/modules/login.dart';
+import 'package:extend_system/app/modules/register.dart';
+import 'package:extend_system/app/modules/profile.dart';
+import 'package:extend_system/app/modules/splash_screen.dart';
+import 'package:extend_system/app/data/controller/authController.dart';
+
+void main() async {
+  await GetStorage.init();
+  Get.put(AuthController());
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
+      title: 'Financial Tracking',
+      debugShowCheckedModeBanner: false,
+      home: const SplashScreen(),
+      routes: {
+        '/login': (context) => const LoginPage(),
+        '/register': (context) => RegisterPage(),
+        '/profile': (context) => const ProfilePage(),
+        '/home': (context) => const HomeShell(),
+      },
+    );
+  }
+}
+
+class HomeSelector extends StatelessWidget {
+  const HomeSelector({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final authController = Get.find<AuthController>();
+      return authController.isLoggedIn.value
+          ? const HomeShell()
+          : const LoginPage();
+    });
+  }
+}

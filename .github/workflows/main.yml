@@ -1,0 +1,33 @@
+name: Deploy to cPanel
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  FTP-Deploy-Action:
+    name: FTP-Deploy-Action
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      # --- Telegram Notification on Success ---
+      - name: Notify Telegram on Success
+        if: success()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot8269763334:AAE_njZr00P7hVdAtJ6X29bBcByZulksDpY/sendMessage" \
+          -d chat_id="-1003650825395" \
+          -d text="✅ Deployment Finacial Tracking Flutter to Github okay! Please merge form main @everyone"
+
+      # --- Telegram Notification on Failure ---
+      - name: Notify Telegram on Failure
+        if: failure()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot8269763334:AAE_njZr00P7hVdAtJ6X29bBcByZulksDpY/sendMessage" \
+          -d chat_id="-1003650825395" \
+          -d text="❌ Deployment to Github failes"
