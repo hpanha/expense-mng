@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:extend_system/firebase_options.dart';
 
 import 'package:extend_system/app/modules/layout.dart';
 import 'package:extend_system/app/modules/login.dart';
@@ -10,6 +12,10 @@ import 'package:extend_system/app/modules/splash_screen.dart';
 import 'package:extend_system/app/data/controller/authController.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   await GetStorage.init();
   Get.put(AuthController());
   runApp(const MyApp());
