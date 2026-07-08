@@ -11,113 +11,196 @@ class ExpensesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
+      backgroundColor: AppTheme.backgroundTeal,
       body: Obx(() {
         if (controller.isLoading.value && controller.expenses.isEmpty) {
           return const Center(
             child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryNavy),
+              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryTeal),
             ),
           );
         }
 
-        if (controller.expenses.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.remove_circle_outlined,
-                  size: 64,
-                  color: Colors.grey[300],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'No expenses yet',
-                  style: TextStyle(fontSize: 18, color: Colors.grey[600]),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Add your first expense to track spending',
-                  style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-                ),
-              ],
-            ),
-          );
-        }
+        final totalExpense = controller.expenses.fold<double>(0, (sum, item) => sum + item.amount);
 
         return RefreshIndicator(
           onRefresh: () => controller.getExpenses(),
-          child: ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: controller.expenses.length,
-            itemBuilder: (context, index) {
-              final expense = controller.expenses[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
-                elevation: 1,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+          color: AppTheme.primaryTeal,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // Total Expense Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFC84B31), Color(0xFF942F1C)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF942F1C).withOpacity(0.2),
+                      blurRadius: 10,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.red[100],
-                    child: const Icon(Icons.remove_circle, color: Colors.red),
+                child: Column(
+                  children: [
+                    Text(
+                      "Total Expense",
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.85),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      "\$${totalExpense.toStringAsFixed(2)}",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              Text(
+                "Transactions",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: AppTheme.darkTeal,
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              if (controller.expenses.isEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.money_off, size: 48, color: Colors.grey[300]),
+                        const SizedBox(height: 12),
+                        Text(
+                          "No expenses registered yet",
+                          style: TextStyle(color: Colors.grey[500]),
+                        ),
+                      ],
+                    ),
                   ),
-                  title: Text(
-                    expense.description,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: Text(
-                    expense.category?.name ?? 'Uncategorized',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '-\$${expense.amount}',
-                        style: const TextStyle(
-                          color: Colors.red,
+                )
+              else
+                ...controller.expenses.map((expense) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E2222) : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.01),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.red[50],
+                        child: const Icon(Icons.arrow_upward_rounded, color: Colors.red, size: 20),
+                      ),
+                      title: Text(
+                        expense.description,
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
+                          color: AppTheme.darkTeal,
+                          fontSize: 14,
                         ),
                       ),
-                      Text(
-                        expense.date,
-                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                      ),
-                    ],
-                  ),
-                  onLongPress: () {
-                    Get.dialog(
-                      AlertDialog(
-                        title: const Text('Delete Expense'),
-                        content: Text(
-                          'Are you sure you want to delete this expense?',
+                      subtitle: Text(
+                        expense.category?.name ?? 'Shopping',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.darkTeal.withOpacity(0.6),
                         ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Get.back(),
-                            child: const Text('Cancel'),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                "-\$${expense.amount.toStringAsFixed(2)}",
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                expense.date,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                            ],
                           ),
-                          TextButton(
-                            onPressed: () {
-                              controller.deleteExpense(expense.id);
-                              Get.back();
+                          const SizedBox(width: 8),
+                          PopupMenuButton<String>(
+                            icon: Icon(Icons.more_vert_rounded, color: Colors.grey[600], size: 20),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            onSelected: (value) {
+                              if (value == 'details') {
+                                _showDetailsDialog(context, expense);
+                              } else if (value == 'delete') {
+                                _showDeleteDialog(context, expense.id);
+                              }
                             },
-                            child: const Text(
-                              'Delete',
-                              style: TextStyle(color: Colors.red),
-                            ),
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'details',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.info_outline_rounded, color: Colors.blue, size: 18),
+                                    SizedBox(width: 8),
+                                    Text('View Details'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.delete_outline_rounded, color: Colors.red, size: 18),
+                                    SizedBox(width: 8),
+                                    Text('Delete'),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    );
-                  },
-                ),
-              );
-            },
+                    ),
+                  );
+                }).toList(),
+            ],
           ),
         );
       }),
@@ -134,11 +217,101 @@ class ExpensesPage extends StatelessWidget {
                   ),
                 );
               },
-              backgroundColor: AppTheme.primaryNavy,
+              backgroundColor: AppTheme.primaryTeal,
               icon: const Icon(Icons.add),
               label: const Text('Add Expense'),
             )
           : null,
+    );
+  }
+
+  void _showDetailsDialog(BuildContext context, dynamic expense) {
+    Get.dialog(
+      AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.info_outline_rounded, color: AppTheme.primaryTeal),
+            const SizedBox(width: 10),
+            Text('Transaction Details', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.darkTeal)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildDetailRow('Description', expense.description),
+            const Divider(),
+            _buildDetailRow('Category', expense.category?.name ?? 'Shopping'),
+            const Divider(),
+            _buildDetailRow('Amount', '-\$${expense.amount.toStringAsFixed(2)}', valueColor: Colors.red),
+            const Divider(),
+            _buildDetailRow('Date', expense.date),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Get.back(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryTeal,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteDialog(BuildContext context, int id) {
+    Get.dialog(
+      AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Delete Expense', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.darkTeal)),
+        content: const Text('Are you sure you want to delete this expense?'),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              controller.deleteExpense(id);
+              Get.back();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[500], fontWeight: FontWeight.w500)),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: valueColor ?? AppTheme.darkTeal,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -156,6 +329,13 @@ class _AddExpenseFormState extends State<AddExpenseForm> {
   final amountController = TextEditingController();
   final descController = TextEditingController();
   String? selectedCategoryId;
+
+  @override
+  void initState() {
+    super.initState();
+    // Refresh categories when the form opens so newly added categories show up
+    controller.getCategories();
+  }
 
   @override
   void dispose() {

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:extend_system/app/data/controller/authController.dart';
+import 'package:extend_system/app/data/controller/purposeController.dart';
 import 'package:extend_system/app/theme/app_theme.dart';
-import 'dart:developer' as developer;
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -12,7 +12,9 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  final controller = Get.find<AuthController>();
+  final authController = Get.find<AuthController>();
+  final purposeController = Get.put(PurposeController());
+  
   final formKey = GlobalKey<FormState>();
   late TextEditingController usernameController;
   late TextEditingController emailController;
@@ -21,77 +23,118 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
-    developer.log('ProfilePage: initState() - Initializing profile page');
     usernameController = TextEditingController(
-      text: controller.user.value?['name'] ?? '',
+      text: authController.user.value?['name'] ?? '',
     );
     emailController = TextEditingController(
-      text: controller.user.value?['email'] ?? '',
+      text: authController.user.value?['email'] ?? '',
     );
-    developer.log(
-      'ProfilePage: initState() - Loaded user data: ${controller.user.value?['name'] ?? 'N/A'}',
-    );
+    purposeController.getPurposes();
   }
 
   @override
   void dispose() {
-    developer.log('ProfilePage: dispose() - Cleaning up profile page');
     usernameController.dispose();
     emailController.dispose();
     super.dispose();
   }
 
   void _submitForm() {
-    developer.log('ProfilePage: _submitForm() - Validating form');
     if (formKey.currentState!.validate()) {
-      developer.log(
-        'ProfilePage: _submitForm() - Form valid, updating profile',
-        name: 'ProfilePage.updateProfile',
-        error: {
-          'username': usernameController.text,
-          'email': emailController.text,
-        },
-      );
-      controller.updateProfile(
+      authController.updateProfile(
         username: usernameController.text,
         email: emailController.text,
       );
       setState(() {
         isEditing = false;
       });
-      developer.log(
-        'ProfilePage: _submitForm() - Profile updated successfully',
-      );
-    } else {
-      developer.log('ProfilePage: _submitForm() - Form validation failed');
     }
   }
 
   void _logout() {
-    developer.log('ProfilePage: _logout() - Logout dialog displayed');
     Get.dialog(
       AlertDialog(
-        title: const Text('Logout'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Logout', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.darkTeal)),
         content: const Text('Are you sure you want to logout?'),
         actions: [
           TextButton(
-            onPressed: () {
-              developer.log('ProfilePage: _logout() - Logout cancelled');
-              Get.back();
-            },
-            child: const Text('Cancel'),
+            onPressed: () => Get.back(),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () {
-              developer.log(
-                'ProfilePage: _logout() - Logout confirmed, user: ${controller.user.value?['name']}',
-              );
               Get.back();
-              controller.logout();
-              developer.log('ProfilePage: _logout() - Redirecting to login');
+              authController.logout();
               Get.offAllNamed('/login');
             },
-            child: const Text('Logout', style: TextStyle(color: Colors.red)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPurposeDialog({int? id, String? currentName}) {
+    final nameController = TextEditingController(text: currentName);
+    final purposeFormKey = GlobalKey<FormState>();
+
+    Get.dialog(
+      AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          id == null ? 'Add Purpose' : 'Edit Purpose',
+          style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.darkTeal),
+        ),
+        content: Form(
+          key: purposeFormKey,
+          child: TextFormField(
+            controller: nameController,
+            decoration: InputDecoration(
+              labelText: 'Purpose Name',
+              hintText: 'e.g., Vacation, Education',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppTheme.primaryTeal, width: 2),
+              ),
+            ),
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Please enter a name';
+              }
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (purposeFormKey.currentState!.validate()) {
+                if (id == null) {
+                  purposeController.addPurpose(name: nameController.text.trim());
+                } else {
+                  purposeController.updatePurpose(id: id, name: nameController.text.trim());
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryTeal,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(id == null ? 'Add' : 'Save'),
           ),
         ],
       ),
@@ -101,17 +144,17 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppTheme.backgroundTeal,
       appBar: AppBar(
         title: const Text('Profile'),
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppTheme.darkTeal,
         elevation: 0,
-        backgroundColor: AppTheme.primaryNavy,
-        foregroundColor: Colors.white,
         actions: [
           if (!isEditing)
             IconButton(
-              icon: const Icon(Icons.edit_outlined),
+              icon: Icon(Icons.edit_outlined, color: AppTheme.darkTeal),
               onPressed: () {
-                developer.log('ProfilePage: Edit mode toggled ON');
                 setState(() {
                   isEditing = true;
                 });
@@ -121,114 +164,126 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       body: Obx(
         () => SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Profile Header with Avatar
+              // 1. Profile Header with Avatar
               Container(
+                width: double.infinity,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [AppTheme.primaryNavy, const Color(0xff1e3a8a)],
+                  gradient: const LinearGradient(
+                    colors: [AppTheme.primaryTeal, Color(0xFF07656A)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primaryTeal.withOpacity(0.15),
+                      blurRadius: 15,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
-                padding: const EdgeInsets.all(30),
+                padding: const EdgeInsets.all(28),
                 child: Column(
                   children: [
-                    // Avatar
+                    // Avatar Circle
                     Container(
-                      width: 120,
-                      height: 120,
+                      width: 100,
+                      height: 100,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [
-                            AppTheme.primaryNavy.withOpacity(0.8),
-                            const Color(0xff1e3a8a),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        border: Border.all(color: Colors.white, width: 4),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
+                        color: Colors.white.withOpacity(0.15),
+                        border: Border.all(color: Colors.white, width: 3),
                       ),
                       child: Center(
                         child: Text(
-                          (controller.user.value?['name'] ?? 'U')[0]
-                              .toUpperCase(),
+                          (authController.user.value?['name'] ?? 'U')[0].toUpperCase(),
                           style: const TextStyle(
-                            fontSize: 60,
+                            fontSize: 48,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
                     // Name
                     Text(
-                      controller.user.value?['name'] ?? 'User',
+                      authController.user.value?['name'] ?? 'User',
                       style: const TextStyle(
-                        fontSize: 24,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    // Email in header
+                    const SizedBox(height: 6),
+                    // Email
                     Text(
-                      controller.user.value?['email'] ?? 'email@example.com',
+                      authController.user.value?['email'] ?? 'email@example.com',
                       style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 13,
+                        color: Colors.white.withOpacity(0.85),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 28),
 
+              // 2. Profile Details Form / View
               if (isEditing) _buildEditForm() else _buildProfileView(context),
+              const SizedBox(height: 28),
 
-              const SizedBox(height: 30),
-              // Logout Button
+              // 3. Purpose Management Section (New Position)
+              if (!isEditing) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Manage Purposes',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.darkTeal,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle_outline, color: AppTheme.primaryTeal, size: 26),
+                      onPressed: () => _showPurposeDialog(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _buildPurposesList(),
+                const SizedBox(height: 32),
+              ],
+
+              // 4. Logout Button
               SizedBox(
                 width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
+                height: 52,
+                child: ElevatedButton.icon(
                   onPressed: _logout,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 3,
+                  icon: const Icon(Icons.logout_rounded, size: 20),
+                  label: const Text(
+                    'Logout',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.logout, size: 20),
-                      SizedBox(width: 10),
-                      Text(
-                        'Logout',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red[50],
+                    foregroundColor: Colors.red[700],
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(color: Colors.red[100]!),
+                    ),
                   ),
                 ),
               ),
+              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -238,74 +293,27 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildProfileView(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Account Section
-        _buildSectionTitle('Account Information'),
+        Text(
+          'Account Details',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.darkTeal,
+          ),
+        ),
         const SizedBox(height: 12),
         _buildInfoCard(
           icon: Icons.person_outline,
           label: 'Username',
-          value: controller.user.value?['name'] ?? 'N/A',
+          value: authController.user.value?['name'] ?? 'N/A',
         ),
         const SizedBox(height: 12),
         _buildInfoCard(
           icon: Icons.email_outlined,
           label: 'Email',
-          value: controller.user.value?['email'] ?? 'N/A',
-        ),
-        const SizedBox(height: 24),
-
-        // Stats Section
-        _buildSectionTitle('Profile Stats'),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                icon: Icons.check_circle_outline,
-                label: 'Active',
-                value: 'Yes',
-                color: Colors.green,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatCard(
-                icon: Icons.verified_user,
-                label: 'Verified',
-                value: 'Yes',
-                color: Colors.blue,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-
-        // Quick Actions
-        _buildSectionTitle('Quick Actions'),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildActionButton(
-                icon: Icons.security,
-                label: 'Security',
-                onTap: () {
-                  developer.log('ProfilePage: Security settings tapped');
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildActionButton(
-                icon: Icons.settings,
-                label: 'Settings',
-                onTap: () {
-                  developer.log('ProfilePage: Settings tapped');
-                },
-              ),
-            ),
-          ],
+          value: authController.user.value?['email'] ?? 'N/A',
         ),
       ],
     );
@@ -315,126 +323,101 @@ class _ProfilePageState extends State<ProfilePage> {
     return Form(
       key: formKey,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionTitle('Edit Profile'),
+          Text(
+            'Edit Details',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.darkTeal,
+            ),
+          ),
           const SizedBox(height: 16),
-          // Username Field
+          // Username Input
           TextFormField(
             controller: usernameController,
             decoration: InputDecoration(
               labelText: 'Username',
-              prefixIcon: const Icon(Icons.person_outline),
-              prefixIconColor: AppTheme.primaryNavy,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+              prefixIcon: const Icon(Icons.person_outline, color: AppTheme.primaryTeal),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: AppTheme.primaryNavy,
-                  width: 2,
-                ),
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: AppTheme.primaryTeal, width: 2),
               ),
               filled: true,
-              fillColor: Colors.grey[50],
+              fillColor: Colors.white,
             ),
             validator: (value) {
-              if (value == null || value.isEmpty) {
+              if (value == null || value.trim().isEmpty) {
                 return 'Username is required';
-              }
-              if (value.length < 2) {
-                return 'Username must be at least 2 characters';
               }
               return null;
             },
           ),
           const SizedBox(height: 16),
-          // Email Field
+          // Email Input
           TextFormField(
             controller: emailController,
             keyboardType: TextInputType.emailAddress,
             decoration: InputDecoration(
               labelText: 'Email',
-              prefixIcon: const Icon(Icons.email_outlined),
-              prefixIconColor: AppTheme.primaryNavy,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+              prefixIcon: const Icon(Icons.email_outlined, color: AppTheme.primaryTeal),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: AppTheme.primaryNavy,
-                  width: 2,
-                ),
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: AppTheme.primaryTeal, width: 2),
               ),
               filled: true,
-              fillColor: Colors.grey[50],
+              fillColor: Colors.white,
             ),
             validator: (value) {
-              if (value == null || value.isEmpty) {
+              if (value == null || value.trim().isEmpty) {
                 return 'Email is required';
               }
               if (!value.contains('@')) {
-                return 'Enter a valid email';
+                return 'Please enter a valid email';
               }
               return null;
             },
           ),
           const SizedBox(height: 24),
-          // Action Buttons
+          // Save & Cancel Buttons
           Row(
             children: [
               Expanded(
-                child: ElevatedButton(
+                child: OutlinedButton(
                   onPressed: () {
-                    developer.log(
-                      'ProfilePage: Edit mode toggled OFF (cancel)',
-                    );
                     setState(() {
                       isEditing = false;
                     });
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey[300],
-                    foregroundColor: Colors.black,
+                  style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    side: const BorderSide(color: Colors.grey),
                   ),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: controller.isLoading.value ? null : _submitForm,
+                  onPressed: authController.isLoading.value ? null : _submitForm,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryNavy,
+                    backgroundColor: AppTheme.primaryTeal,
                     foregroundColor: Colors.white,
+                    elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
-                  child: controller.isLoading.value
+                  child: authController.isLoading.value
                       ? const SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                            strokeWidth: 2,
-                          ),
+                          child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(Colors.white)),
                         )
-                      : const Text(
-                          'Save',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
+                      : const Text('Save Changes', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -444,17 +427,101 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: AppTheme.primaryNavy,
+  Widget _buildPurposesList() {
+    if (purposeController.isLoading.value && purposeController.purposes.isEmpty) {
+      return const Center(child: CircularProgressIndicator(color: AppTheme.primaryTeal));
+    }
+    
+    if (purposeController.purposes.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
         ),
-      ),
+        child: Center(
+          child: Text(
+            'No purposes added yet.',
+            style: TextStyle(color: Colors.grey[500]),
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: purposeController.purposes.length,
+      itemBuilder: (context, index) {
+        final purpose = purposeController.purposes[index];
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E2222) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.01),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: AppTheme.primaryTeal.withOpacity(0.1),
+                    child: const Icon(Icons.star_rounded, color: AppTheme.primaryTeal, size: 18),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    purpose.name,
+                    style: TextStyle(fontWeight: FontWeight.w600, color: AppTheme.darkTeal),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit_rounded, color: Colors.blue, size: 20),
+                    onPressed: () => _showPurposeDialog(id: purpose.id, currentName: purpose.name),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_rounded, color: Colors.red, size: 20),
+                    onPressed: () {
+                      Get.dialog(
+                        AlertDialog(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          title: Text('Delete Purpose', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.darkTeal)),
+                          content: const Text('Are you sure you want to delete this purpose?'),
+                          actions: [
+                            TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+                            ElevatedButton(
+                              onPressed: () {
+                                Get.back();
+                                purposeController.deletePurpose(purpose.id);
+                              },
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white, elevation: 0),
+                              child: const Text('Delete'),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              )
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -463,131 +530,46 @@ class _ProfilePageState extends State<ProfilePage> {
     required String label,
     required String value,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!, width: 1),
+        color: isDark ? const Color(0xFF1E2222) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          Container(
-            decoration: BoxDecoration(
-              color: AppTheme.primaryNavy.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            padding: const EdgeInsets.all(12),
-            child: Icon(icon, color: AppTheme.primaryNavy, size: 24),
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: AppTheme.primaryTeal.withOpacity(0.08),
+            child: Icon(icon, color: AppTheme.primaryTeal, size: 22),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: TextStyle(fontSize: 11, color: Colors.grey[500], fontWeight: FontWeight.w500),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   value,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.darkTeal),
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2), width: 1),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 32),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!, width: 1),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Icon(icon, color: AppTheme.primaryNavy, size: 28),
-                const SizedBox(height: 8),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryNavy,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

@@ -5,6 +5,18 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:extend_system/app/data/services/api_service.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 
+/// AuthController supports two login strategies:
+///
+/// 1. Laravel Auth — email/password → POST /api/register or /api/login
+///    → server returns a Laravel API token → stored in GetStorage.
+///
+/// 2. Firebase Auth (Google / Facebook) → Firebase issues an ID token
+///    → POST /api/firebase/login with that ID token
+///    → server verifies, creates/finds the user, returns a Laravel API token
+///    → stored in GetStorage.
+///
+/// All protected API calls use the stored Laravel token as Bearer.
+/// Firebase tokens are NEVER sent to business endpoints.
 class AuthController extends GetxController {
   final ApiService api = ApiService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -18,32 +30,22 @@ class AuthController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    // Listen to Firebase Auth state changes
-    _auth.authStateChanges().listen((User? firebaseUser) async {
-      if (firebaseUser != null) {
-        final idToken = await firebaseUser.getIdToken();
-        if (idToken != null) {
-          await api.setToken(idToken);
-        }
-        user.value = {
-          'name': firebaseUser.displayName ?? 'User',
-          'email': firebaseUser.email ?? '',
-        };
-        isLoggedIn.value = true;
-        // Load additional profile details from backend if synced
-        await getProfile();
-      } else {
-        await api.clearToken();
-        user.value = null;
-        isLoggedIn.value = false;
-      }
-    });
+    // Restore session from storage if a Laravel token is already saved
+    if (api.isLoggedIn()) {
+      isLoggedIn.value = true;
+      _loadProfile();
+    }
   }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Laravel Email / Password Auth
+  // ─────────────────────────────────────────────────────────────────────────
 
   Future<void> register({
     required String username,
     required String email,
     required String password,
+    String? passwordConfirmation,
   }) async {
     try {
       isLoading.value = true;
@@ -52,29 +54,26 @@ class AuthController extends GetxController {
       if (username.length < 2) {
         throw Exception('Username must be at least 2 characters');
       }
-
       if (password.length < 8) {
         throw Exception('Password must be at least 8 characters');
       }
 
-      // Firebase Registration
-      final credential = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
+      final response = await api.postForm(
+        "register",
+        {
+          "username": username,
+          "email": email,
+          "password": password,
+          "password_confirmation": passwordConfirmation ?? password,
+        },
       );
 
-      // Update Display Name
-      await credential.user?.updateDisplayName(username);
-
-      final idToken = await credential.user?.getIdToken();
-      if (idToken != null) {
-        await api.setToken(idToken);
+      final token = _extractToken(response);
+      if (token != null) {
+        await api.setToken(token);
       }
 
-      user.value = {
-        'name': username,
-        'email': email,
-      };
+      user.value = _extractUser(response) ?? {"name": username, "email": email};
       isLoggedIn.value = true;
 
       Get.snackbar(
@@ -82,7 +81,6 @@ class AuthController extends GetxController {
         'Registration successful!',
         snackPosition: SnackPosition.BOTTOM,
       );
-
       Get.offAllNamed('/home');
     } catch (e) {
       errorMessage.value = e.toString();
@@ -101,21 +99,18 @@ class AuthController extends GetxController {
       isLoading.value = true;
       errorMessage.value = "";
 
-      // Firebase Sign In
-      final credential = await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
+      final response = await api.postForm(
+        "login",
+        {"email": email, "password": password},
       );
 
-      final idToken = await credential.user?.getIdToken();
-      if (idToken != null) {
-        await api.setToken(idToken);
+      final token = _extractToken(response);
+      if (token == null) {
+        throw Exception('No token received from server');
       }
+      await api.setToken(token);
 
-      user.value = {
-        'name': credential.user?.displayName ?? 'User',
-        'email': credential.user?.email ?? '',
-      };
+      user.value = _extractUser(response) ?? {"email": email};
       isLoggedIn.value = true;
 
       Get.snackbar(
@@ -123,7 +118,6 @@ class AuthController extends GetxController {
         'Login successful!',
         snackPosition: SnackPosition.BOTTOM,
       );
-
       Get.offAllNamed('/home');
     } catch (e) {
       errorMessage.value = e.toString();
@@ -137,107 +131,53 @@ class AuthController extends GetxController {
     }
   }
 
-  Future<void> signInWithFacebook() async {
-    try {
-      isLoading.value = true;
-      errorMessage.value = "";
-
-      // Trigger Facebook login flow
-      final LoginResult result = await FacebookAuth.instance.login();
-
-      if (result.status == LoginStatus.success) {
-        // Create a credential from the access token
-        final OAuthCredential credential =
-            FacebookAuthProvider.credential(result.accessToken!.tokenString);
-
-        // Sign in to Firebase with the credential
-        final userCredential = await _auth.signInWithCredential(credential);
-
-        final idToken = await userCredential.user?.getIdToken();
-        if (idToken != null) {
-          await api.setToken(idToken);
-        }
-
-        user.value = {
-          'name': userCredential.user?.displayName ?? 'User',
-          'email': userCredential.user?.email ?? '',
-        };
-        isLoggedIn.value = true;
-
-        Get.snackbar(
-          'Success',
-          'Logged in with Facebook!',
-          snackPosition: SnackPosition.BOTTOM,
-        );
-
-        Get.offAllNamed('/home');
-      } else if (result.status == LoginStatus.cancelled) {
-        throw Exception('Login cancelled by user');
-      } else {
-        throw Exception(result.message ?? 'Facebook login failed');
-      }
-    } catch (e) {
-      errorMessage.value = e.toString();
-      Get.snackbar(
-        'Error',
-        'Facebook login failed: ${e.toString()}',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } finally {
-      isLoading.value = false;
-    }
-  }
+  // ─────────────────────────────────────────────────────────────────────────
+  // Firebase Social Auth → exchange for Laravel token
+  // ─────────────────────────────────────────────────────────────────────────
 
   Future<void> signInWithGoogle() async {
     try {
       isLoading.value = true;
       errorMessage.value = "";
 
-      // Trigger the Google Sign-In flow
       final GoogleSignIn googleSignIn = kIsWeb
           ? GoogleSignIn(
               clientId:
-                  '449999885077-ov2m8garmn2fs1ah9qi2gfp5sion5c4b.apps.googleusercontent.com', // Replace this with your Web Client ID from Firebase Console
+                  '449999885077-ov2m8garmn2fs1ah9qi2gfp5sion5c4b.apps.googleusercontent.com',
             )
           : GoogleSignIn();
 
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      if (googleUser == null) throw Exception('Sign in cancelled by user');
 
-      if (googleUser != null) {
-        // Obtain the auth details from the request
-        final GoogleSignInAuthentication googleAuth =
-            await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
 
-        // Create a new credential
-        final OAuthCredential credential = GoogleAuthProvider.credential(
-          accessToken: googleAuth.accessToken,
-          idToken: googleAuth.idToken,
-        );
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
 
-        // Sign in to Firebase with the credential
-        final userCredential = await _auth.signInWithCredential(credential);
+      final userCredential = await _auth.signInWithCredential(credential);
+      final firebaseIdToken = await userCredential.user?.getIdToken();
 
-        final idToken = await userCredential.user?.getIdToken();
-        if (idToken != null) {
-          await api.setToken(idToken);
-        }
-
-        user.value = {
-          'name': userCredential.user?.displayName ?? 'User',
-          'email': userCredential.user?.email ?? '',
-        };
-        isLoggedIn.value = true;
-
-        Get.snackbar(
-          'Success',
-          'Logged in with Google!',
-          snackPosition: SnackPosition.BOTTOM,
-        );
-
-        Get.offAllNamed('/home');
-      } else {
-        throw Exception('Sign in cancelled by user');
+      if (firebaseIdToken == null) {
+        throw Exception('Failed to get Firebase ID token');
       }
+
+      // Exchange Firebase token for Laravel API token
+      await _exchangeFirebaseToken(
+        firebaseIdToken: firebaseIdToken,
+        displayName: userCredential.user?.displayName,
+        email: userCredential.user?.email,
+      );
+
+      Get.snackbar(
+        'Success',
+        'Logged in with Google!',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      Get.offAllNamed('/home');
     } catch (e) {
       errorMessage.value = e.toString();
       Get.snackbar(
@@ -250,11 +190,102 @@ class AuthController extends GetxController {
     }
   }
 
+  Future<void> signInWithFacebook() async {
+    try {
+      isLoading.value = true;
+      errorMessage.value = "";
+
+      final LoginResult result = await FacebookAuth.instance.login();
+
+      if (result.status == LoginStatus.cancelled) {
+        throw Exception('Login cancelled by user');
+      } else if (result.status != LoginStatus.success) {
+        throw Exception(result.message ?? 'Facebook login failed');
+      }
+
+      final OAuthCredential credential =
+          FacebookAuthProvider.credential(result.accessToken!.tokenString);
+
+      final userCredential = await _auth.signInWithCredential(credential);
+      final firebaseIdToken = await userCredential.user?.getIdToken();
+
+      if (firebaseIdToken == null) {
+        throw Exception('Failed to get Firebase ID token');
+      }
+
+      // Exchange Firebase token for Laravel API token
+      await _exchangeFirebaseToken(
+        firebaseIdToken: firebaseIdToken,
+        displayName: userCredential.user?.displayName,
+        email: userCredential.user?.email,
+      );
+
+      Get.snackbar(
+        'Success',
+        'Logged in with Facebook!',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      Get.offAllNamed('/home');
+    } catch (e) {
+      errorMessage.value = e.toString();
+      Get.snackbar(
+        'Error',
+        'Facebook login failed: ${e.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  /// Sends the Firebase ID token to the backend's /firebase/login endpoint.
+  /// The backend verifies the token, creates/finds the user, and returns a
+  /// Laravel API token which we then store for all future API calls.
+  Future<void> _exchangeFirebaseToken({
+    required String firebaseIdToken,
+    String? displayName,
+    String? email,
+  }) async {
+    final response = await api.postForm(
+      "firebase/login",
+      {"idToken": firebaseIdToken},
+    );
+
+    final token = _extractToken(response);
+    if (token == null) {
+      throw Exception('No Laravel token received from firebase/login');
+    }
+    await api.setToken(token);
+
+    user.value = _extractUser(response) ??
+        {
+          "name": displayName ?? "User",
+          "email": email ?? "",
+        };
+    isLoggedIn.value = true;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Profile
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Future<void> _loadProfile() async {
+    try {
+      await getProfile();
+    } catch (e) {
+      debugPrint("Could not load profile on init: $e");
+    }
+  }
+
   Future<void> getProfile() async {
     try {
       final response = await api.get('profile');
-      if (response != null && response['user'] != null) {
-        user.value = response['user'];
+      if (response != null) {
+        // Support both { user: {...} } and flat { name, email, ... }
+        final userData = response['user'] ?? response;
+        if (userData is Map<String, dynamic>) {
+          user.value = userData;
+        }
       }
     } catch (e) {
       errorMessage.value = e.toString();
@@ -271,44 +302,21 @@ class AuthController extends GetxController {
       isLoading.value = true;
       errorMessage.value = "";
 
-      // Update in Firebase Auth if needed
-      final currentUser = _auth.currentUser;
-      if (currentUser != null) {
-        if (username != null && username.length >= 2) {
-          await currentUser.updateDisplayName(username);
-        }
-        if (email != null && email.isNotEmpty) {
-          await currentUser.verifyBeforeUpdateEmail(email);
-        }
-        if (password != null && password.length >= 8) {
-          await currentUser.updatePassword(password);
-        }
-      }
-
-      // Fallback/sync update to custom backend
       final data = <String, dynamic>{};
-      if (username != null) data['username'] = username;
-      if (email != null) data['email'] = email;
-      if (password != null) {
+      if (username != null && username.isNotEmpty) data['name'] = username;
+      if (email != null && email.isNotEmpty) data['email'] = email;
+      if (password != null && password.isNotEmpty) {
         data['password'] = password;
-        data['password_confirmation'] = passwordConfirmation;
+        data['password_confirmation'] = passwordConfirmation ?? password;
       }
 
-      try {
-        final response = await api.put('profile', data);
-        if (response != null && response['user'] != null) {
-          user.value = response['user'];
+      final response = await api.put('profile', data);
+      if (response != null) {
+        final userData = response['user'] ?? response;
+        if (userData is Map<String, dynamic>) {
+          user.value = userData;
         }
-      } catch (e) {
-        // Log backend sync error but do not block UI success if Firebase updated
-        debugPrint("Backend profile sync failed: $e");
       }
-
-      // Update local state
-      user.value = {
-        'name': currentUser?.displayName ?? username ?? 'User',
-        'email': currentUser?.email ?? email ?? '',
-      };
 
       Get.snackbar(
         'Success',
@@ -327,13 +335,30 @@ class AuthController extends GetxController {
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Logout
+  // ─────────────────────────────────────────────────────────────────────────
+
   Future<void> logout() async {
     try {
       isLoading.value = true;
-      // Log out of Firebase, Facebook and Google
-      await _auth.signOut();
-      await FacebookAuth.instance.logOut();
-      await GoogleSignIn().signOut();
+
+      // Call backend logout to invalidate the Laravel token
+      try {
+        await api.postForm("logout", {}, requireAuth: true);
+      } catch (e) {
+        debugPrint("Backend logout error (ignored): $e");
+      }
+
+      // Sign out of Firebase / social providers
+      try {
+        await _auth.signOut();
+        await FacebookAuth.instance.logOut();
+        await GoogleSignIn().signOut();
+      } catch (e) {
+        debugPrint("Firebase signout error (ignored): $e");
+      }
+
       await api.clearToken();
       user.value = null;
       isLoggedIn.value = false;
@@ -343,6 +368,7 @@ class AuthController extends GetxController {
         'Logged out successfully!',
         snackPosition: SnackPosition.BOTTOM,
       );
+      Get.offAllNamed('/login');
     } catch (e) {
       errorMessage.value = e.toString();
       Get.snackbar(
@@ -353,5 +379,43 @@ class AuthController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Helpers
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /// Extracts the auth token from common Laravel response formats.
+  /// Supports: { token }, { access_token }, { data: { token } }
+  String? _extractToken(dynamic response) {
+    if (response == null) return null;
+    if (response is Map) {
+      return response['token'] as String? ??
+          response['access_token'] as String? ??
+          (response['data'] is Map ? response['data']['token'] as String? : null);
+    }
+    return null;
+  }
+
+  /// Extracts the user map from common Laravel response formats.
+  /// Supports: { user }, { data: { user } }, flat user fields.
+  Map<String, dynamic>? _extractUser(dynamic response) {
+    if (response == null) return null;
+    if (response is Map<String, dynamic>) {
+      if (response.containsKey('user') && response['user'] is Map) {
+        return Map<String, dynamic>.from(response['user'] as Map);
+      }
+      if (response.containsKey('data') && response['data'] is Map) {
+        final data = response['data'] as Map;
+        if (data.containsKey('user')) {
+          return Map<String, dynamic>.from(data['user'] as Map);
+        }
+      }
+      // Flat response with name/email at root
+      if (response.containsKey('name') || response.containsKey('email')) {
+        return response;
+      }
+    }
+    return null;
   }
 }

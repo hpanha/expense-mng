@@ -10,17 +10,27 @@ class ReportPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return DefaultTabController(
       length: 3,
       child: Scaffold(
-        backgroundColor: const Color(0xffF8FAFC),
+        backgroundColor: isDark ? const Color(0xFF121515) : AppTheme.backgroundTeal,
         appBar: AppBar(
-          title: const Text("Financial Reports"),
-          bottom: const TabBar(
-            indicatorColor: Colors.white,
-            labelColor: AppTheme.primaryNavy,
+          title: Text(
+            "Financial Reports",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : AppTheme.darkTeal,
+            ),
+          ),
+          backgroundColor: isDark ? const Color(0xFF1A1D1D) : Colors.white,
+          elevation: 0.5,
+          bottom: TabBar(
+            indicatorColor: AppTheme.primaryTeal,
+            labelColor: AppTheme.primaryTeal,
             unselectedLabelColor: Colors.grey,
-            tabs: [
+            labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+            tabs: const [
               Tab(text: "Daily"),
               Tab(text: "Weekly"),
               Tab(text: "Monthly"),
@@ -32,7 +42,7 @@ class ReportPage extends StatelessWidget {
             _ReportTabContent(
               controller: controller,
               reportType: 'daily',
-              title: "Today's Report",
+              title: "Daily Report",
             ),
             _ReportTabContent(
               controller: controller,
@@ -67,6 +77,8 @@ class _ReportTabContent extends StatefulWidget {
 }
 
 class _ReportTabContentState extends State<_ReportTabContent> {
+  DateTime selectedDate = DateTime.now();
+
   @override
   void initState() {
     super.initState();
@@ -74,24 +86,79 @@ class _ReportTabContentState extends State<_ReportTabContent> {
   }
 
   void _loadReport() {
+    final formattedDate = "${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}";
     if (widget.reportType == 'daily') {
-      widget.controller.getDailyReport();
+      widget.controller.getDailyReport(date: formattedDate);
     } else if (widget.reportType == 'weekly') {
-      widget.controller.getWeeklyReport();
+      widget.controller.getWeeklyReport(date: formattedDate);
     } else {
-      widget.controller.getMonthlyReport();
+      widget.controller.getMonthlyReport(date: formattedDate);
+    }
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      builder: (context, child) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Theme(
+          data: isDark
+              ? ThemeData.dark().copyWith(
+                  colorScheme: const ColorScheme.dark(
+                    primary: AppTheme.primaryTeal,
+                    onPrimary: Colors.white,
+                    surface: Color(0xFF1E2222),
+                    onSurface: Colors.white,
+                  ),
+                )
+              : ThemeData.light().copyWith(
+                  colorScheme: ColorScheme.light(
+                    primary: AppTheme.primaryTeal,
+                    onPrimary: Colors.white,
+                    surface: Colors.white,
+                    onSurface: AppTheme.darkTeal,
+                  ),
+                ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && picked != selectedDate) {
+      setState(() {
+        selectedDate = picked;
+      });
+      _loadReport();
+    }
+  }
+
+  String _getDateDisplayString(Map<String, dynamic>? report) {
+    if (widget.reportType == 'daily') {
+      return report?['date'] ?? "${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}";
+    } else if (widget.reportType == 'weekly') {
+      if (report != null && report['start_date'] != null && report['end_date'] != null) {
+        return "${report['start_date']} to ${report['end_date']}";
+      }
+      return "Week of ${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}";
+    } else {
+      return report?['month'] ?? "${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}";
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return RefreshIndicator(
       onRefresh: () async => _loadReport(),
+      color: AppTheme.primaryTeal,
       child: Obx(() {
         if (widget.controller.isLoading.value) {
           return const Center(
             child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryNavy),
+              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryTeal),
             ),
           );
         }
@@ -102,48 +169,81 @@ class _ReportTabContentState extends State<_ReportTabContent> {
             ? widget.controller.weeklyReport.value
             : widget.controller.monthlyReport.value;
 
-        if (report == null) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.assessment_outlined,
-                  size: 64,
-                  color: Colors.grey[300],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'No data available',
-                  style: TextStyle(fontSize: 18, color: Colors.grey[600]),
-                ),
-              ],
-            ),
-          );
-        }
-
-        final income = (report['total_income'] ?? 0).toDouble();
-        final expense = (report['total_expense'] ?? 0).toDouble();
+        final income = (report?['total_income'] ?? 0).toDouble();
+        final expense = (report?['total_expense'] ?? 0).toDouble();
         final balance = income - expense;
+        final dateLabel = _getDateDisplayString(report);
 
         return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
+              // Date Filter Selector Card
+              GestureDetector(
+                onTap: () => _selectDate(context),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E2222) : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isDark ? Colors.grey[800]! : Colors.grey[100]!,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const CircleAvatar(
+                        backgroundColor: AppTheme.lightTeal,
+                        child: Icon(Icons.calendar_today_rounded, color: AppTheme.primaryTeal, size: 20),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Filter Date",
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[500],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              dateLabel,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : AppTheme.darkTeal,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.edit_calendar_rounded, color: Colors.grey[400], size: 20),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
               // Balance Card
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(25),
+                padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [AppTheme.primaryNavy, const Color(0xff1e3a8a)],
+                  gradient: const LinearGradient(
+                    colors: [AppTheme.primaryTeal, Color(0xFF07656A)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: AppTheme.primaryNavy.withOpacity(0.3),
+                      color: AppTheme.primaryTeal.withOpacity(0.2),
                       blurRadius: 10,
                       offset: const Offset(0, 5),
                     ),
@@ -154,9 +254,9 @@ class _ReportTabContentState extends State<_ReportTabContent> {
                   children: [
                     Text(
                       widget.title,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 15,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.85),
+                        fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -165,19 +265,19 @@ class _ReportTabContentState extends State<_ReportTabContent> {
                       "\$${balance.toStringAsFixed(2)}",
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 40,
+                        fontSize: 36,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 5),
-                    const Text(
-                      "Current Balance",
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    const SizedBox(height: 6),
+                    Text(
+                      "Net Balance",
+                      style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
               // Income and Expense Cards
               Row(
@@ -190,7 +290,7 @@ class _ReportTabContentState extends State<_ReportTabContent> {
                       icon: Icons.arrow_downward_rounded,
                     ),
                   ),
-                  const SizedBox(width: 15),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: _SummaryCard(
                       title: "Expense",
@@ -201,32 +301,28 @@ class _ReportTabContentState extends State<_ReportTabContent> {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-              // Summary Details
+              // Summary Details Card
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: isDark ? const Color(0xFF1E2222) : Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  border: Border.all(
+                    color: isDark ? Colors.grey[800]! : Colors.grey[100]!,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       "Summary Details",
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryNavy,
+                        color: isDark ? Colors.white : AppTheme.darkTeal,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -245,7 +341,7 @@ class _ReportTabContentState extends State<_ReportTabContent> {
                     _DetailRow(
                       label: "Balance",
                       value: balance,
-                      color: AppTheme.primaryNavy,
+                      color: AppTheme.primaryTeal,
                       isBold: true,
                     ),
                   ],
@@ -274,45 +370,42 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E2222) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(
+          color: isDark ? Colors.grey[800]! : Colors.grey[100]!,
+        ),
       ),
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withOpacity(0.08),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: color, size: 28),
+            child: Icon(icon, color: color, size: 24),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Text(
             title,
             style: const TextStyle(
-              fontSize: 14,
+              fontSize: 13,
               color: Colors.grey,
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Text(
             "\$${amount.toStringAsFixed(2)}",
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.bold,
-              fontSize: 20,
-              color: AppTheme.primaryNavy,
+              fontSize: 18,
+              color: isDark ? Colors.white : AppTheme.darkTeal,
             ),
           ),
         ],
@@ -336,22 +429,25 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           label,
           style: TextStyle(
-            fontSize: 15,
+            fontSize: 14,
             fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-            color: isBold ? AppTheme.primaryNavy : Colors.grey[700],
+            color: isBold
+                ? (isDark ? Colors.white : AppTheme.darkTeal)
+                : (isDark ? Colors.grey[400] : Colors.grey[700]),
           ),
         ),
         Text(
-          "\$${value.toStringAsFixed(2)}",
+          "${value >= 0 ? '' : '-'}\$${value.abs().toStringAsFixed(2)}",
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            fontSize: 15,
+            fontSize: 14,
             color: color,
           ),
         ),

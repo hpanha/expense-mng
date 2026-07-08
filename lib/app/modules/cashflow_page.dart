@@ -30,15 +30,15 @@ class _CashflowPageState extends State<CashflowPage> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xfff8fafc),
+      backgroundColor: AppTheme.backgroundTeal,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(50),
         child: Container(
-          color: Colors.white,
+          color: Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white,
           child: TabBar(
             controller: _tabController,
-            indicatorColor: AppTheme.primaryNavy,
-            labelColor: AppTheme.primaryNavy,
+            indicatorColor: AppTheme.primaryTeal,
+            labelColor: AppTheme.primaryTeal,
             unselectedLabelColor: Colors.grey,
             labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 15),
@@ -173,7 +173,7 @@ class _ExpandableFabState extends State<ExpandableFab> with SingleTickerProvider
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E2222) : Colors.white,
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
@@ -219,7 +219,7 @@ class _ExpandableFabState extends State<ExpandableFab> with SingleTickerProvider
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E2222) : Colors.white,
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(

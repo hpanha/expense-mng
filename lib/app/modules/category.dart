@@ -208,10 +208,6 @@ class CategoryPage extends StatelessWidget {
                             value: 'expense',
                             child: Text('Expense'),
                           ),
-                          DropdownMenuItem(
-                            value: 'saving',
-                            child: Text('Saving'),
-                          ),
                         ],
                         onChanged: (value) {
                           setDialogState(() {
@@ -396,77 +392,16 @@ class CategoryPage extends StatelessWidget {
                                     ? null
                                     : () {
                                         if (formKey.currentState!.validate()) {
-                                          double? goalAmount;
-                                          double? currentAmount;
-                                          String? targetDateStr;
-                                          double? frequencyAmount;
-                                          double? completionPercentage;
-
-                                          if (selectedType == 'saving') {
-                                            goalAmount = double.parse(goalAmountController.text);
-                                            currentAmount = double.tryParse(currentAmountController.text) ?? 0.0;
-                                            final duration = int.parse(durationController.text);
-                                            final now = DateTime.now();
-                                            
-                                            DateTime targetDate;
-                                            if (selectedDurationUnit == 'days') {
-                                              targetDate = now.add(Duration(days: duration));
-                                            } else if (selectedDurationUnit == 'weeks') {
-                                              targetDate = now.add(Duration(days: duration * 7));
-                                            } else if (selectedDurationUnit == 'months') {
-                                              targetDate = DateTime(now.year, now.month + duration, now.day);
-                                            } else {
-                                              targetDate = DateTime(now.year + duration, now.month, now.day);
-                                            }
-                                            
-                                            targetDateStr = "${targetDate.year}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}";
-                                            
-                                            final today = DateTime(now.year, now.month, now.day);
-                                            final totalDays = targetDate.difference(today).inDays;
-                                            
-                                            double rawFrequencyAmount = 0.0;
-                                            if (totalDays > 0) {
-                                              if (selectedFrequency == 'daily') {
-                                                rawFrequencyAmount = goalAmount / totalDays;
-                                              } else if (selectedFrequency == 'weekly') {
-                                                rawFrequencyAmount = goalAmount / (totalDays / 7.0);
-                                              } else if (selectedFrequency == 'monthly') {
-                                                final totalMonths = (targetDate.year - today.year) * 12 + (targetDate.month - today.month);
-                                                final double monthsDouble = totalMonths > 0 ? totalMonths.toDouble() : (totalDays / 30.0);
-                                                rawFrequencyAmount = goalAmount / monthsDouble;
-                                              }
-                                            } else {
-                                              rawFrequencyAmount = goalAmount;
-                                            }
-
-                                            frequencyAmount = double.parse(rawFrequencyAmount.toStringAsFixed(2));
-                                            completionPercentage = double.parse(((currentAmount / goalAmount) * 100).clamp(0.0, 100.0).toStringAsFixed(1));
-                                          }
-
                                           if (category == null) {
                                             controller.addCategory(
                                               name: nameController.text,
                                               type: selectedType,
-                                              savingGoalAmount: goalAmount,
-                                              savingCurrentAmount: currentAmount,
-                                              savingTargetDate: targetDateStr,
-                                              savingFrequency: selectedType == 'saving' ? selectedFrequency : null,
-                                              savingFrequencyAmount: frequencyAmount,
-                                              savingCompletionPercentage: completionPercentage,
-                                              savingIcon: selectedType == 'saving' ? selectedIcon : null,
                                             );
                                           } else {
                                             controller.updateCategory(
                                               id: category['id'],
                                               name: nameController.text,
                                               type: selectedType,
-                                              savingGoalAmount: goalAmount,
-                                              savingCurrentAmount: currentAmount,
-                                              savingTargetDate: targetDateStr,
-                                              savingFrequency: selectedType == 'saving' ? selectedFrequency : null,
-                                              savingFrequencyAmount: frequencyAmount,
-                                              savingCompletionPercentage: completionPercentage,
-                                              savingIcon: selectedType == 'saving' ? selectedIcon : null,
                                             );
                                           }
                                         }
@@ -551,11 +486,7 @@ class CategoryPage extends StatelessWidget {
                 'Expense Categories',
                 controller.expenseCategories,
               ),
-              const SizedBox(height: 24),
-              _buildCategorySection(
-                'Saving Categories',
-                controller.savingCategories,
-              ),
+              // Saving goals are now managed via /api/saving-categories separately
             ],
           ),
         );

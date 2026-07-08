@@ -1,3 +1,3 @@
 class API {
-  final api = "https://extend-system.vercel.app/api";
+  final api = "https://financial-tracking-azure.vercel.app/api";
 }

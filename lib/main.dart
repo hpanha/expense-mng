@@ -10,6 +10,7 @@ import 'package:extend_system/app/modules/register.dart';
 import 'package:extend_system/app/modules/profile.dart';
 import 'package:extend_system/app/modules/splash_screen.dart';
 import 'package:extend_system/app/data/controller/authController.dart';
+import 'package:extend_system/app/theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +30,9 @@ class MyApp extends StatelessWidget {
     return GetMaterialApp(
       title: 'Financial Tracking',
       debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system,
       home: const SplashScreen(),
       routes: {
         '/login': (context) => const LoginPage(),

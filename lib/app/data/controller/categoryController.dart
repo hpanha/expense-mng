@@ -7,7 +7,6 @@ class CategoryController extends GetxController {
   RxList categories = [].obs;
   RxList incomeCategories = [].obs;
   RxList expenseCategories = [].obs;
-  RxList savingCategories = [].obs;
   RxBool isLoading = false.obs;
   RxString errorMessage = "".obs;
 
@@ -21,19 +20,15 @@ class CategoryController extends GetxController {
     try {
       isLoading.value = true;
       errorMessage.value = "";
-      var response = await api.get("categories");
-      categories.value = response;
+      final response = await api.get("categories");
+      final list = response is List ? response : [];
+      categories.value = list;
 
-      // Separate into income and expense categories
-      incomeCategories.value = response
-          .where((c) => c['type'] == 'income')
-          .toList();
-      expenseCategories.value = response
-          .where((c) => c['type'] == 'expense')
-          .toList();
-      savingCategories.value = response
-          .where((c) => c['type'] == 'saving')
-          .toList();
+      // Split into typed lists (categories API only returns income & expense now)
+      incomeCategories.value =
+          list.where((c) => c['type'] == 'income').toList();
+      expenseCategories.value =
+          list.where((c) => c['type'] == 'expense').toList();
     } catch (e) {
       errorMessage.value = e.toString();
       Get.snackbar(
@@ -46,34 +41,15 @@ class CategoryController extends GetxController {
     }
   }
 
+  /// Creates a category. Only [name] and [type] ("income" | "expense") are
+  /// required. Saving goals are handled separately via SavingCategoryController.
   Future<void> addCategory({
     required String name,
     required String type,
-    double? savingGoalAmount,
-    double? savingCurrentAmount,
-    String? savingTargetDate,
-    String? savingFrequency,
-    double? savingFrequencyAmount,
-    double? savingCompletionPercentage,
-    String? savingIcon,
   }) async {
     try {
       isLoading.value = true;
-      final Map<String, dynamic> body = {
-        "name": name,
-        "type": type,
-      };
-      if (type == 'saving') {
-        body['saving_goal_amount'] = savingGoalAmount;
-        body['saving_current_amount'] = savingCurrentAmount;
-        body['saving_target_date'] = savingTargetDate;
-        body['saving_frequency'] = savingFrequency;
-        body['saving_frequency_amount'] = savingFrequencyAmount;
-        body['saving_completion_percentage'] = savingCompletionPercentage;
-        body['saving_icon'] = savingIcon;
-      }
-      await api.post("categories", body);
-
+      await api.post("categories", {"name": name, "type": type});
       await getCategories();
       Get.back();
       Get.snackbar(
@@ -96,31 +72,10 @@ class CategoryController extends GetxController {
     required int id,
     required String name,
     required String type,
-    double? savingGoalAmount,
-    double? savingCurrentAmount,
-    String? savingTargetDate,
-    String? savingFrequency,
-    double? savingFrequencyAmount,
-    double? savingCompletionPercentage,
-    String? savingIcon,
   }) async {
     try {
       isLoading.value = true;
-      final Map<String, dynamic> body = {
-        "name": name,
-        "type": type,
-      };
-      if (type == 'saving') {
-        body['saving_goal_amount'] = savingGoalAmount;
-        body['saving_current_amount'] = savingCurrentAmount;
-        body['saving_target_date'] = savingTargetDate;
-        body['saving_frequency'] = savingFrequency;
-        body['saving_frequency_amount'] = savingFrequencyAmount;
-        body['saving_completion_percentage'] = savingCompletionPercentage;
-        body['saving_icon'] = savingIcon;
-      }
-      await api.put("categories/$id", body);
-
+      await api.put("categories/$id", {"name": name, "type": type});
       await getCategories();
       Get.back();
       Get.snackbar(

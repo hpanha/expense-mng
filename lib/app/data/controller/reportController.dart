@@ -11,11 +11,13 @@ class ReportController extends GetxController {
   RxBool isLoading = false.obs;
   RxString errorMessage = "".obs;
 
-  Future<void> getDailyReport() async {
+  Future<void> getDailyReport({String? date}) async {
     try {
       isLoading.value = true;
       errorMessage.value = "";
-      var response = await api.get("reports/daily");
+      String path = "reports/daily";
+      if (date != null) path += "?date=$date";
+      var response = await api.get(path);
       dailyReport.value = response is Map<String, dynamic>
           ? response
           : Map<String, dynamic>.from(response as Map);
@@ -31,11 +33,13 @@ class ReportController extends GetxController {
     }
   }
 
-  Future<void> getWeeklyReport() async {
+  Future<void> getWeeklyReport({String? date}) async {
     try {
       isLoading.value = true;
       errorMessage.value = "";
-      var response = await api.get("reports/weekly");
+      String path = "reports/weekly";
+      if (date != null) path += "?date=$date";
+      var response = await api.get(path);
       weeklyReport.value = response is Map<String, dynamic>
           ? response
           : Map<String, dynamic>.from(response as Map);
@@ -51,11 +55,13 @@ class ReportController extends GetxController {
     }
   }
 
-  Future<void> getMonthlyReport() async {
+  Future<void> getMonthlyReport({String? date}) async {
     try {
       isLoading.value = true;
       errorMessage.value = "";
-      var response = await api.get("reports/monthly");
+      String path = "reports/monthly";
+      if (date != null) path += "?date=$date";
+      var response = await api.get(path);
       monthlyReport.value = response is Map<String, dynamic>
           ? response
           : Map<String, dynamic>.from(response as Map);

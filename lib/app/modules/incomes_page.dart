@@ -12,113 +12,196 @@ class IncomesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
+      backgroundColor: AppTheme.backgroundTeal,
       body: Obx(() {
         if (controller.isLoading.value && controller.incomes.isEmpty) {
           return const Center(
             child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryNavy),
+              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryTeal),
             ),
           );
         }
 
-        if (controller.incomes.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.attach_money_outlined,
-                  size: 64,
-                  color: Colors.grey[300],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'No incomes yet',
-                  style: TextStyle(fontSize: 18, color: Colors.grey[600]),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Add your first income to get started',
-                  style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-                ),
-              ],
-            ),
-          );
-        }
+        final totalIncome = controller.incomes.fold<double>(0, (sum, item) => sum + item.amount);
 
         return RefreshIndicator(
           onRefresh: () => controller.getIncome(),
-          child: ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: controller.incomes.length,
-            itemBuilder: (context, index) {
-              final income = controller.incomes[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
-                elevation: 1,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+          color: AppTheme.primaryTeal,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // Total Income Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF0F8C58), Color(0xFF0B6A43)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0B6A43).withOpacity(0.2),
+                      blurRadius: 10,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.green[100],
-                    child: const Icon(Icons.add_circle, color: Colors.green),
+                child: Column(
+                  children: [
+                    Text(
+                      "Total Income",
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.85),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      "\$${totalIncome.toStringAsFixed(2)}",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              Text(
+                "Transactions",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: AppTheme.darkTeal,
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              if (controller.incomes.isEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.money_off, size: 48, color: Colors.grey[300]),
+                        const SizedBox(height: 12),
+                        Text(
+                          "No incomes registered yet",
+                          style: TextStyle(color: Colors.grey[500]),
+                        ),
+                      ],
+                    ),
                   ),
-                  title: Text(
-                    income.description,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: Text(
-                    income.category?.name ?? 'Uncategorized',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '+\$${income.amount}',
-                        style: const TextStyle(
-                          color: Colors.green,
+                )
+              else
+                ...controller.incomes.map((income) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E2222) : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.01),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.green[50],
+                        child: const Icon(Icons.arrow_downward_rounded, color: Colors.green, size: 20),
+                      ),
+                      title: Text(
+                        income.description,
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
+                          color: AppTheme.darkTeal,
+                          fontSize: 14,
                         ),
                       ),
-                      Text(
-                        income.date,
-                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                      ),
-                    ],
-                  ),
-                  onLongPress: () {
-                    Get.dialog(
-                      AlertDialog(
-                        title: const Text('Delete Income'),
-                        content: Text(
-                          'Are you sure you want to delete this income?',
+                      subtitle: Text(
+                        income.category?.name ?? 'Salary',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.darkTeal.withOpacity(0.6),
                         ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Get.back(),
-                            child: const Text('Cancel'),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                "+\$${income.amount.toStringAsFixed(2)}",
+                                style: const TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                income.date,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                            ],
                           ),
-                          TextButton(
-                            onPressed: () {
-                              controller.deleteIncome(income.id);
-                              Get.back();
+                          const SizedBox(width: 8),
+                          PopupMenuButton<String>(
+                            icon: Icon(Icons.more_vert_rounded, color: Colors.grey[600], size: 20),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            onSelected: (value) {
+                              if (value == 'details') {
+                                _showDetailsDialog(context, income);
+                              } else if (value == 'delete') {
+                                _showDeleteDialog(context, income.id);
+                              }
                             },
-                            child: const Text(
-                              'Delete',
-                              style: TextStyle(color: Colors.red),
-                            ),
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'details',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.info_outline_rounded, color: Colors.blue, size: 18),
+                                    SizedBox(width: 8),
+                                    Text('View Details'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.delete_outline_rounded, color: Colors.red, size: 18),
+                                    SizedBox(width: 8),
+                                    Text('Delete'),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    );
-                  },
-                ),
-              );
-            },
+                    ),
+                  );
+                }).toList(),
+            ],
           ),
         );
       }),
@@ -135,11 +218,101 @@ class IncomesPage extends StatelessWidget {
                   ),
                 );
               },
-              backgroundColor: AppTheme.primaryNavy,
+              backgroundColor: AppTheme.primaryTeal,
               icon: const Icon(Icons.add),
               label: const Text('Add Income'),
             )
           : null,
+    );
+  }
+
+  void _showDetailsDialog(BuildContext context, dynamic income) {
+    Get.dialog(
+      AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.info_outline_rounded, color: AppTheme.primaryTeal),
+            const SizedBox(width: 10),
+            Text('Transaction Details', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.darkTeal)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildDetailRow('Description', income.description),
+            const Divider(),
+            _buildDetailRow('Category', income.category?.name ?? 'Salary'),
+            const Divider(),
+            _buildDetailRow('Amount', '+\$${income.amount.toStringAsFixed(2)}', valueColor: Colors.green),
+            const Divider(),
+            _buildDetailRow('Date', income.date),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Get.back(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryTeal,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteDialog(BuildContext context, int id) {
+    Get.dialog(
+      AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Delete Income', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.darkTeal)),
+        content: const Text('Are you sure you want to delete this income?'),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              controller.deleteIncome(id);
+              Get.back();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[500], fontWeight: FontWeight.w500)),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: valueColor ?? AppTheme.darkTeal,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -157,6 +330,13 @@ class _AddIncomeFormState extends State<AddIncomeForm> {
   final amountController = TextEditingController();
   final descController = TextEditingController();
   String? selectedCategoryId;
+
+  @override
+  void initState() {
+    super.initState();
+    // Refresh categories when the form opens so newly added categories show up
+    controller.getCategories();
+  }
 
   @override
   void dispose() {

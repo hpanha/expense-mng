@@ -13,7 +13,13 @@ class ApiException implements Exception {
 }
 
 class ApiService {
-  static const String baseUrl = "https://extend-system.vercel.app/api";
+  static const bool isProduction = true;
+  
+  // Use localhost (127.0.0.1) since you are running on Chrome (Web).
+  static const String localBaseUrl = 'http://127.0.0.1:8000/api';
+  static const String prodBaseUrl = 'https://financial-tracking-jade-mu.vercel.app/api';
+
+  final String baseUrl = isProduction ? prodBaseUrl : localBaseUrl;
   static const Duration timeout = Duration(seconds: 30);
 
   // Toggle this to use mock data for development when API is unavailable
@@ -46,11 +52,13 @@ class ApiService {
     return getToken() != null;
   }
 
-  Map<String, String> _getHeaders({bool requireAuth = true}) {
+  Map<String, String> _getHeaders({
+    bool requireAuth = true,
+    String contentType = 'application/json',
+  }) {
     final headers = {
       'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'User-Agent': 'FinancialTracking/1.0',
+      'Content-Type': contentType,
     };
 
     if (requireAuth) {
@@ -154,6 +162,61 @@ class ApiService {
       rethrow;
     } catch (e) {
       print('❌ Error: $e');
+      _handleError(e);
+    }
+  }
+
+  /// Sends a POST request with application/x-www-form-urlencoded body.
+  /// Required by the Financial Tracking API auth endpoints
+  /// (register, login, logout, firebase/login).
+  Future<dynamic> postForm(
+    String endpoint,
+    Map<String, dynamic> data, {
+    bool requireAuth = false,
+  }) async {
+    try {
+      final url = Uri.parse("$baseUrl/$endpoint");
+      final headers = _getHeaders(
+        requireAuth: requireAuth,
+        contentType: 'application/x-www-form-urlencoded',
+      );
+
+      // Encode as form fields (filter out null values)
+      final body = data.entries
+          .where((e) => e.value != null)
+          .map((e) =>
+              '${Uri.encodeQueryComponent(e.key)}='
+              '${Uri.encodeQueryComponent(e.value.toString())}')
+          .join('&');
+
+      print('🔵 POST FORM Request: $endpoint');
+      print('📍 URL: $url');
+      print('📦 Data: $data');
+
+      final client = _getHttpClient();
+      final request = http.Request('POST', url)
+        ..headers.addAll(headers)
+        ..body = body;
+
+      final streamedResponse = await client.send(request).timeout(
+        timeout,
+        onTimeout: () {
+          throw ApiException(
+            message: 'Connection timeout. Server took too long to respond.',
+          );
+        },
+      );
+
+      final response = await http.Response.fromStream(streamedResponse);
+
+      print('✅ Response Status: ${response.statusCode}');
+      print('📄 Response Body: ${response.body}');
+
+      return _handleResponse(response);
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      print('❌ Form POST Error: $e');
       _handleError(e);
     }
   }
